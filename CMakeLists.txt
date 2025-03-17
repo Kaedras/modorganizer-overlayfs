@@ -12,11 +12,13 @@ target_sources(overlayfs
         src/overlayfsmanager.cpp
         PUBLIC
         FILE_SET HEADERS
-        BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include/overlayfs
+        BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
         FILES
         include/overlayfs/overlayfsmanager.h
         include/overlayfs/logging.h
 )
+
+add_library(mo2::overlayfs ALIAS overlayfs)
 
 # compile options
 target_compile_options(overlayfs PRIVATE -Wall -Wextra -Wpedantic -fvisibility=hidden)
