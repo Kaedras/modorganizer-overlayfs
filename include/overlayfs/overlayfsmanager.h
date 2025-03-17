@@ -1,9 +1,9 @@
 #pragma once
 
 #include "logging.h"
+#include <QTemporaryDir>
 #include <filesystem>
 #include <vector>
-#include <QTemporaryDir>
 
 #include <spdlog/sinks/basic_file_sink.h>
 #include <spdlog/spdlog.h>

@@ -135,9 +135,9 @@ void OverlayFsManager::clearSkipDirectories() noexcept
   m_directoryBlacklist.clear();
 }
 
-void OverlayFsManager::forceLoadLibrary(const std::filesystem::path& processName,
-                                        const std::filesystem::path& libraryPath)
-  noexcept
+void OverlayFsManager::forceLoadLibrary(
+    const std::filesystem::path& processName,
+    const std::filesystem::path& libraryPath) noexcept
 {
   STUB();
 }
@@ -255,8 +255,7 @@ bool OverlayFsManager::mount() noexcept
     p.setArguments(args);
 
     m_logger->debug("mounting overlay fs with command: {} {}",
-                    p.program().toStdString(),
-                    p.arguments().join(' ').toStdString());
+                    p.program().toStdString(), p.arguments().join(' ').toStdString());
 
     p.start();
     if (!p.waitForFinished(500)) {
@@ -475,7 +474,7 @@ std::vector<pid_t> OverlayFsManager::getOverlayFsProcessList() const noexcept
 }
 
 OverlayFsManager::OverlayFsManager(std::filesystem::path file) noexcept
-  : m_logFile(std::move(file))
+    : m_logFile(std::move(file))
 {
   createLogger();
 }
@@ -539,8 +538,8 @@ bool OverlayFsManager::processFiles() noexcept
     // create symlinks
     for (const map_t& entry : m_fileMap) {
       if (entry.destination.parent_path() == destination) {
-        fs::path symlinkPath = data.upperDir.path().toStdString() / entry.destination.
-                               filename();
+        fs::path symlinkPath =
+            data.upperDir.path().toStdString() / entry.destination.filename();
         create_symlink(entry.source, symlinkPath, ec);
         if (ec) {
           m_logger->error("error creating symlink {}: {}", symlinkPath.generic_string(),
