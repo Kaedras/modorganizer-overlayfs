@@ -67,7 +67,7 @@ void OverlayFsManager::setUpperDir(const std::filesystem::path& directory,
 bool OverlayFsManager::addFile(const std::filesystem::path& source,
                                const std::filesystem::path& destination) noexcept
 {
-  // check if there is an entry in m_maps with identical source and destination
+  // check if there is an entry in m_maps with an identical source and destination
   for (const map_t& entry : m_fileMap) {
     if (entry.source == source && entry.destination == destination) {
       return true;
@@ -79,7 +79,7 @@ bool OverlayFsManager::addFile(const std::filesystem::path& source,
     return false;
   }
 
-  // append file name if destination is a directory
+  // append the file name if destination is a directory
   if (is_directory(destination)) {
     m_fileMap.emplace_back(source, destination / source.filename());
   } else {
@@ -91,14 +91,14 @@ bool OverlayFsManager::addFile(const std::filesystem::path& source,
 bool OverlayFsManager::addDirectory(const std::filesystem::path& source,
                                     const std::filesystem::path& destination) noexcept
 {
-  // check if there is an entry in m_maps with identical source and destination
+  // check if there is an entry in m_maps with an identical source and destination
   for (const map_t& entry : m_map) {
     if (entry.source == source && entry.destination == destination) {
       return true;
     }
   }
 
-  // create new entry
+  // create a new entry
   m_map.emplace_back(map_t{source, destination});
   return true;
 }
@@ -139,6 +139,7 @@ void OverlayFsManager::forceLoadLibrary(
     const std::filesystem::path& processName,
     const std::filesystem::path& libraryPath) noexcept
 {
+  // add LD_PRELOAD / WINEDLLOVERRIDES?
   STUB();
 }
 
@@ -225,7 +226,7 @@ bool OverlayFsManager::mount() noexcept
         fs::path whiteoutFile = mount.upperDir / whiteout;
         // todo: store a list of created directories for later deletion
         create_directories(whiteoutFile.parent_path());
-        // create character device with device number 0/0
+        // create a character device with device number 0/0
         int r = mknod(whiteoutFile.c_str(), S_IFCHR, makedev(0, 0));
         if (r != 0) {
           const int e = errno;
@@ -244,7 +245,7 @@ bool OverlayFsManager::mount() noexcept
     // create arguments
     QStringList args;
     args << u"--debug"_s;
-    // upper dir can be empty for read-only
+    // the upper dir can be empty for read-only
     if (!mount.upperDir.empty()) {
       args << u"-o"_s << u"upperdir=%1"_s.arg(mount.upperDir.c_str());
       args << u"-o"_s << u"workdir=%1"_s.arg(mount.workDir.path());
@@ -344,7 +345,7 @@ bool OverlayFsManager::umount() noexcept
   error_code ec;
 
   for (overlayFsData_t& entry : m_mounts) {
-    // may be false on partial mounts
+    // can be false on partial mounts
     if (!entry.mounted) {
       continue;
     }
@@ -367,7 +368,7 @@ bool OverlayFsManager::umount() noexcept
     // delete whiteout files
     for (const std::filesystem::path& whiteout : entry.whiteout) {
       fs::path whiteoutLocation = entry.upperDir / whiteout;
-      // check if file is actually empty
+      // check if the file is actually empty
       auto size = file_size(whiteoutLocation);
       if (size != 0) {
         m_logger->error("umount: whiteout file {} size should be 0, but is {}",

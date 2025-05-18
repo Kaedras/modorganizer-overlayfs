@@ -37,15 +37,15 @@ public:
 
   /**
    * @brief Sets workdir and optionally creates it if it does not exist.
-   * @param directory Workdir to use. Must be on the same file system as upper dir.
-   * @param create create directory if it does not exist
+   * @param directory Workdir to use. Must be on the same file system as the upper dir.
+   * @param create create the directory if it does not exist
    */
   void setWorkDir(const std::filesystem::path& directory, bool create = false) noexcept;
 
   /**
-   * @brief Sets upper dir and optionally creates it if it does not exist.
+   * @brief Sets the upper dir and optionally creates it if it does not exist.
    * @param directory Upper dir to use. Must be on the same file system as workdir.
-   * @param create Create directory if it does not exist.
+   * @param create Create the directory if it does not exist.
    */
   void setUpperDir(const std::filesystem::path& directory,
                    bool create = false) noexcept;
@@ -83,7 +83,7 @@ public:
   /**
    * @brief Adds a directory name that will be skipped during directory linking.
    * Not a path. Any directory matching the name will be skipped,
-   * regardless of its path, for example if .git is added,
+   * regardless of its path, for example, if .git is added,
    * any sub-path or root-path containing a .git directory
    * will have the .git directory skipped during directory linking
    * @param directory Name of the directory
@@ -96,8 +96,7 @@ public:
   void clearSkipDirectories() noexcept;
 
   /**
-   * adds a library to be force loaded when the given process is injected
-   * add LD_PRELOAD / WINEDLLOVERRIDES ??
+   * @brief Adds a library to be force loaded when the given process is injected
    */
   void forceLoadLibrary(const std::filesystem::path& processName,
                         const std::filesystem::path& libraryPath) noexcept;
@@ -160,7 +159,7 @@ private:
   bool processFiles() noexcept;
   bool createOverlayFsMounts() noexcept;
   /**
-   * @brief deletes all whiteout files
+   * @brief Deletes all whiteout files
    */
   void cleanup() noexcept;
 
@@ -180,8 +179,8 @@ private:
   /** Enable debugging mode, can be very noisy. */
   bool m_debuggingMode = false;
   /**
-   * A directory used internally by fuse-overlays,
-   * must be on the same file system as the upper dir.
+   * A directory used internally by fuse-overlayfs.
+   * Must be on the same file system as the upper dir.
    */
   std::filesystem::path m_workDir;
   /**
