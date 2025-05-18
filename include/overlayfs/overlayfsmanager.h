@@ -130,8 +130,13 @@ private:
     std::filesystem::path source;
     std::filesystem::path destination;
   };
-
   using Map = std::vector<map_t>;
+
+  struct forceLoadLibrary_t
+  {
+    std::filesystem::path processName;
+    std::filesystem::path libraryPath;
+  };
 
   struct overlayFsData_t
   {
@@ -166,6 +171,7 @@ private:
   LogLevel m_loglevel = LogLevel::Warning;
   Map m_map;
   Map m_fileMap;
+  std::vector<forceLoadLibrary_t> m_forceLoadLibraries;
   std::vector<std::string> m_fileSuffixBlacklist;
   std::vector<std::string> m_directoryBlacklist;
   std::vector<std::filesystem::path> m_createdWhiteoutFiles;

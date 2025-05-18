@@ -139,13 +139,12 @@ void OverlayFsManager::forceLoadLibrary(
     const std::filesystem::path& processName,
     const std::filesystem::path& libraryPath) noexcept
 {
-  // add LD_PRELOAD / WINEDLLOVERRIDES?
-  STUB();
+  m_forceLoadLibraries.emplace_back(processName, libraryPath);
 }
 
 void OverlayFsManager::clearLibraryForceLoads() noexcept
 {
-  STUB();
+  m_forceLoadLibraries.clear();
 }
 
 void OverlayFsManager::clearMappings() noexcept
