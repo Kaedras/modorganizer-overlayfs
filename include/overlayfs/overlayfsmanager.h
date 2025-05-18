@@ -176,6 +176,7 @@ private:
   std::shared_ptr<spdlog::logger> m_logger;
   std::filesystem::path m_logFile;
   bool m_mounted = false;
+  std::mutex m_mountMutex;
   /** Enable debugging mode, can be very noisy. */
   bool m_debuggingMode = false;
   /**

@@ -201,6 +201,8 @@ void OverlayFsManager::dryrun() noexcept
 
 bool OverlayFsManager::mount() noexcept
 {
+  std::scoped_lock lock(m_mountMutex);
+
   if (m_mounted) {
     return true;
   }
@@ -332,6 +334,8 @@ bool OverlayFsManager::mount() noexcept
 
 bool OverlayFsManager::umount() noexcept
 {
+  std::scoped_lock lock(m_mountMutex);
+
   if (!m_mounted) {
     m_logger->debug("umount: not mounted");
     return true;
