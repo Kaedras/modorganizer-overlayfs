@@ -420,6 +420,15 @@ bool OverlayFsManager::umount() noexcept
 bool OverlayFsManager::createProcess(const std::string& applicationName,
                                      const std::string& commandLine) noexcept
 {
+  if (!m_mounted) {
+    if (!mount()) {
+      m_logger->error("Not starting process because mount failed");
+      return false;
+    }
+  }
+
+  // todo: implement handling of m_forceLoadLibraries
+
   auto p = make_unique<QProcess>();
   p->setProgram(QString::fromStdString(applicationName));
   p->setArguments(QProcess::splitCommand(QString::fromStdString(commandLine)));
@@ -427,6 +436,12 @@ bool OverlayFsManager::createProcess(const std::string& applicationName,
   if (p->waitForStarted()) {
     m_logger->debug("created process \"{} {}\" with pid {}", applicationName,
                     commandLine, p->processId());
+
+    QObject::connect(p.get(), &QProcess::finished, [this] {
+      m_logger->debug("process finished, unmounting");
+      umount();
+    });
+
     m_startedProcesses.emplace_back(std::move(p));
     return true;
   }

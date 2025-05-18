@@ -112,7 +112,14 @@ public:
   bool mount() noexcept;
   bool umount() noexcept;
 
-  // std::string getName();
+  /**
+   * @brief Creates and starts a new process after ensuring that the overlay filesystem
+   * is properly mounted. Automatically unmounts the filesystem when the process
+   * terminates.
+   * @param applicationName The name or path of the executable to be run as a process.
+   * @param commandLine The command-line arguments to be passed to the executable.
+   * @return true if the process was successfully created and started; false otherwise.
+   */
   bool createProcess(const std::string& applicationName,
                      const std::string& commandLine) noexcept;
   static const char* ofsVersionString() noexcept;
