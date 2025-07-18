@@ -20,6 +20,9 @@
 
 #define STUB() std::cout << __FILE_NAME__ << ": " << __PRETTY_FUNCTION__ << ": STUB!\n"
 
+// process wait timeout in msec
+static inline constexpr int timeout = 10'000;
+
 using namespace std;
 namespace fs = std::filesystem;
 using namespace Qt::StringLiterals;
@@ -260,7 +263,7 @@ bool OverlayFsManager::mount() noexcept
                     p.program().toStdString(), p.arguments().join(' ').toStdString());
 
     p.start();
-    if (!p.waitForFinished(500)) {
+    if (!p.waitForFinished(timeout)) {
       m_logger->error("mount error: {}", p.errorString().toStdString());
       return false;
     }
@@ -303,7 +306,7 @@ bool OverlayFsManager::mount() noexcept
                     p.arguments().join(' ').toStdString());
 
     p.start();
-    if (!p.waitForFinished(500)) {
+    if (!p.waitForFinished(timeout)) {
       m_logger->error("mount error: {}", p.errorString().toStdString());
       return false;
     }
@@ -359,7 +362,7 @@ bool OverlayFsManager::umount() noexcept
     p.setProgram(u"umount"_s);
     p.setArguments({QString::fromStdString(entry.target.generic_string())});
     p.start();
-    bool result = p.waitForFinished(500);
+    bool result = p.waitForFinished(timeout);
 
     if (!result || p.exitCode() != 0) {
       m_logger->error("umount returned {}", p.exitCode());
@@ -398,7 +401,7 @@ bool OverlayFsManager::umount() noexcept
     p.setProgram(u"umount"_s);
     p.setArguments({QString::fromStdString(entry.target.generic_string())});
     p.start();
-    bool result = p.waitForFinished(500);
+    bool result = p.waitForFinished(timeout);
 
     if (!result || p.exitCode() != 0) {
       m_logger->error("unmount returned {}: {}", p.exitCode(),
