@@ -70,16 +70,16 @@ void OverlayFsManager::setUpperDir(const std::filesystem::path& directory,
 bool OverlayFsManager::addFile(const std::filesystem::path& source,
                                const std::filesystem::path& destination) noexcept
 {
+  if (is_directory(source)) {
+    m_logger->error("source file must not be a directory");
+    return false;
+  }
+
   // check if there is an entry in m_maps with an identical source and destination
   for (const map_t& entry : m_fileMap) {
     if (entry.source == source && entry.destination == destination) {
       return true;
     }
-  }
-
-  if (is_directory(source)) {
-    m_logger->error("source file must not be a directory");
-    return false;
   }
 
   // append the file name if destination is a directory
