@@ -5,6 +5,7 @@ project(overlayfs CXX)
 set(CMAKE_CXX_STANDARD 23)
 
 find_package(Qt6 CONFIG REQUIRED COMPONENTS Core)
+find_package(spdlog CONFIG REQUIRED)
 add_library(overlayfs SHARED)
 
 target_sources(overlayfs
@@ -23,7 +24,7 @@ add_library(mo2::overlayfs ALIAS overlayfs)
 # compile options
 target_compile_options(overlayfs PRIVATE -Wall -Wextra -Wpedantic -fvisibility=hidden)
 
-target_link_libraries(overlayfs PRIVATE spdlog Qt6::Core)
+target_link_libraries(overlayfs PRIVATE spdlog::spdlog_header_only Qt6::Core)
 
 # install
 install(TARGETS overlayfs EXPORT overlayfsTargets FILE_SET HEADERS)
