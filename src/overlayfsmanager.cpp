@@ -251,10 +251,10 @@ bool OverlayFsManager::mount() noexcept
     args << u"--debug"_s;
     // the upper dir can be empty for read-only
     if (!mount.upperDir.empty()) {
-      args << u"-o"_s << u"upperdir=%1"_s.arg(mount.upperDir.c_str());
-      args << u"-o"_s << u"workdir=%1"_s.arg(mount.workDir.path());
+      args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.c_str());
+      args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
     }
-    args << u"-o"_s << u"lowerdir=%1"_s.arg(lowerDirs.c_str());
+    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(lowerDirs.c_str());
     args << QString::fromStdString(mount.target.generic_string());
 
     p.setArguments(args);
@@ -295,9 +295,9 @@ bool OverlayFsManager::mount() noexcept
     // create arguments
     QStringList args;
     args << u"--debug"_s;
-    args << u"-o"_s << u"upperdir=%1"_s.arg(mount.upperDir.path());
-    args << u"-o"_s << u"workdir=%1"_s.arg(mount.workDir.path());
-    args << u"-o"_s << u"lowerdir=%1"_s.arg(mount.target.generic_string().c_str());
+    args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.path());
+    args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
+    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(mount.target.generic_string().c_str());
     args << QString::fromStdString(mount.target.generic_string());
 
     p.setArguments(args);
