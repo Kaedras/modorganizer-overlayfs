@@ -104,6 +104,15 @@ bool OverlayFsManager::addDirectory(const std::filesystem::path& source,
 {
   scoped_lock dataLock(m_dataMutex);
 
+  if (!is_directory(source)) {
+    m_logger->error("source must be a directory");
+    return false;
+  }
+  if (!is_directory(destination)) {
+    m_logger->error("destination must be a directory");
+    return false;
+  }
+
   // check if there is an entry in m_maps with an identical source and destination
   for (const map_t& entry : m_map) {
     if (entry.source == source && entry.destination == destination) {
