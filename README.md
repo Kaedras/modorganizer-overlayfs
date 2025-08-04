@@ -5,7 +5,7 @@ ModOrganizer 2 on Linux.
 
 ## Requirements
 
-Older versions may also work, but are not tested.
+Older versions may also work but are not tested.
 
 - CMake 3.31
 - fuse-overlayfs 1.14
