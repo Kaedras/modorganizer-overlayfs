@@ -34,12 +34,16 @@ void OverlayFsManager::setLogLevel(LogLevel level) noexcept
 
 bool OverlayFsManager::isMounted() const noexcept
 {
+  // lock in case a mount operation is pending
+  scoped_lock mountLock(m_mountMutex);
   return m_mounted;
 }
 
 void OverlayFsManager::setWorkDir(const std::filesystem::path& directory,
                                   bool create) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   if (!exists(directory)) {
     if (create) {
       create_directories(directory);
@@ -55,6 +59,8 @@ void OverlayFsManager::setWorkDir(const std::filesystem::path& directory,
 void OverlayFsManager::setUpperDir(const std::filesystem::path& directory,
                                    bool create) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   if (!exists(directory)) {
     if (create) {
       create_directories(directory);
@@ -70,6 +76,8 @@ void OverlayFsManager::setUpperDir(const std::filesystem::path& directory,
 bool OverlayFsManager::addFile(const std::filesystem::path& source,
                                const std::filesystem::path& destination) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   if (is_directory(source)) {
     m_logger->error("source file must not be a directory");
     return false;
@@ -94,6 +102,8 @@ bool OverlayFsManager::addFile(const std::filesystem::path& source,
 bool OverlayFsManager::addDirectory(const std::filesystem::path& source,
                                     const std::filesystem::path& destination) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   // check if there is an entry in m_maps with an identical source and destination
   for (const map_t& entry : m_map) {
     if (entry.source == source && entry.destination == destination) {
@@ -114,27 +124,37 @@ std::vector<std::filesystem::path> OverlayFsManager::createOverlayFsDump() noexc
 
 void OverlayFsManager::setLogFile(const std::filesystem::path& file) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_logFile = file;
   createLogger();
 }
 
 void OverlayFsManager::addSkipFileSuffix(const std::string& fileSuffix) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_fileSuffixBlacklist.emplace_back(fileSuffix);
 }
 
 void OverlayFsManager::clearSkipFileSuffixes() noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_fileSuffixBlacklist.clear();
 }
 
 void OverlayFsManager::addSkipDirectory(const std::filesystem::path& directory) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_directoryBlacklist.emplace_back(directory);
 }
 
 void OverlayFsManager::clearSkipDirectories() noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_directoryBlacklist.clear();
 }
 
@@ -142,16 +162,22 @@ void OverlayFsManager::forceLoadLibrary(
     const std::filesystem::path& processName,
     const std::filesystem::path& libraryPath) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_forceLoadLibraries.emplace_back(processName, libraryPath);
 }
 
 void OverlayFsManager::clearLibraryForceLoads() noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_forceLoadLibraries.clear();
 }
 
 void OverlayFsManager::clearMappings() noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+
   m_map.clear();
   m_fileMap.clear();
 }
@@ -203,7 +229,8 @@ void OverlayFsManager::dryrun() noexcept
 
 bool OverlayFsManager::mount() noexcept
 {
-  std::scoped_lock lock(m_mountMutex);
+  scoped_lock mountLock(m_mountMutex);
+  scoped_lock dataLock(m_dataMutex);
 
   if (m_mounted) {
     return true;
@@ -336,7 +363,8 @@ bool OverlayFsManager::mount() noexcept
 
 bool OverlayFsManager::umount() noexcept
 {
-  std::scoped_lock lock(m_mountMutex);
+  scoped_lock mountLock(m_mountMutex);
+  scoped_lock dataLock(m_dataMutex);
 
   if (!m_mounted) {
     m_logger->debug("umount: not mounted");
@@ -423,6 +451,9 @@ bool OverlayFsManager::umount() noexcept
 bool OverlayFsManager::createProcess(const std::string& applicationName,
                                      const std::string& commandLine) noexcept
 {
+  scoped_lock dataLock(m_dataMutex);
+  scoped_lock mountLock(m_mountMutex);
+
   if (!m_mounted) {
     if (!mount()) {
       m_logger->error("Not starting process because mount failed");

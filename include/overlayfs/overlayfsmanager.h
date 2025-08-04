@@ -190,6 +190,7 @@ private:
   std::filesystem::path m_logFile;
   bool m_mounted = false;
   std::mutex m_mountMutex;
+  std::mutex m_dataMutex;
   /** Enable debugging mode, can be very noisy. */
   bool m_debuggingMode = false;
   /**
