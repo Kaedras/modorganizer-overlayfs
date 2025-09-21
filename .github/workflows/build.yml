@@ -42,6 +42,7 @@ jobs:
 
   publish:
     if: github.ref_type == 'tag'
+    needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
