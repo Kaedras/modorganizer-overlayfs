@@ -50,7 +50,7 @@ jobs:
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          name: mo2-overlayfs.tar.zst
+          name: mo2-overlayfs
 
       - name: Publish Release
         env:
