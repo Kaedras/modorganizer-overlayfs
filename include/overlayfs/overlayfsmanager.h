@@ -33,7 +33,7 @@ public:
   void operator=(OverlayFsManager const&)   = delete;
 
   void setLogLevel(LogLevel level) noexcept;
-  [[nodiscard]] bool isMounted() const noexcept;
+  [[nodiscard]] bool isMounted() noexcept;
 
   /**
    * @brief Sets workdir and optionally creates it if it does not exist.

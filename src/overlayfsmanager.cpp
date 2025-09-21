@@ -32,7 +32,7 @@ void OverlayFsManager::setLogLevel(LogLevel level) noexcept
   m_loglevel = level;
 }
 
-bool OverlayFsManager::isMounted() const noexcept
+bool OverlayFsManager::isMounted() noexcept
 {
   // lock in case a mount operation is pending
   scoped_lock mountLock(m_mountMutex);
