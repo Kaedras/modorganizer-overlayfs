@@ -1,0 +1,54 @@
+name: Build mo2-overlayfs
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  VCPKG_BINARY_SOURCES: ${{ vars.AZ_BLOB_VCPKG_URL != '' && format('clear;x-azblob,{0},{1},readwrite', vars.AZ_BLOB_VCPKG_URL, secrets.AZ_BLOB_SAS) || '' }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # set VCPKG Root
+      - name: "Set environmental variables"
+        run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> $GITHUB_ENV
+
+      - name: Install Qt
+        uses: jurplel/install-qt-action@v4
+
+      - uses: actions/checkout@v5
+
+      - name: Configure
+        run: cmake --preset linux
+
+      - name: Build
+        run: cmake --build build --config RelWithDebInfo --target install
+
+      - name: Pack artifact
+        run: tar -I 'zstd -19 -T0' -cf mo2-overlayfs.tar.zst -C ./install/ .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mo2-overlayfs
+          path: mo2-overlayfs.tar.zst
+
+  publish:
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mo2-overlayfs.tar.zst
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create --draft=false --notes="Release ${{ github.ref_name }}" "${{ github.ref_name }}" ./mo2-overlayfs_${{ github.ref_name }}.tar.zst
