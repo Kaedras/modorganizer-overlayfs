@@ -16,7 +16,6 @@ target_sources(overlayfs
         BASE_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/include
         FILES
         include/overlayfs/overlayfsmanager.h
-        include/overlayfs/logging.h
 )
 
 add_library(mo2::overlayfs ALIAS overlayfs)

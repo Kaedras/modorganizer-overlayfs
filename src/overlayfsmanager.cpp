@@ -27,7 +27,7 @@ using namespace std;
 namespace fs = std::filesystem;
 using namespace Qt::StringLiterals;
 
-void OverlayFsManager::setLogLevel(LogLevel level) noexcept
+void OverlayFsManager::setLogLevel(spdlog::level::level_enum level) noexcept
 {
   m_loglevel = level;
 }
@@ -501,26 +501,6 @@ const char* OverlayFsManager::ofsVersionString() noexcept
 void OverlayFsManager::setDebugMode(bool value) noexcept
 {
   m_debuggingMode = value;
-}
-
-const char* OverlayFsManager::logLevelToString(LogLevel lv) noexcept
-{
-  switch (lv) {
-  case LogLevel::Debug:
-    return "debug";
-
-  case LogLevel::Info:
-    return "info";
-
-  case LogLevel::Warning:
-    return "warning";
-
-  case LogLevel::Error:
-    return "error";
-
-  default:
-    return "unknown";
-  }
 }
 
 std::vector<pid_t> OverlayFsManager::getOverlayFsProcessList() const noexcept

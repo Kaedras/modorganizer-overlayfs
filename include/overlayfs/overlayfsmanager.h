@@ -1,6 +1,5 @@
 #pragma once
 
-#include "logging.h"
 #include <QTemporaryDir>
 #include <filesystem>
 #include <vector>
@@ -32,7 +31,7 @@ public:
   OverlayFsManager(OverlayFsManager const&) = delete;
   void operator=(OverlayFsManager const&)   = delete;
 
-  void setLogLevel(LogLevel level) noexcept;
+  void setLogLevel(spdlog::level::level_enum level) noexcept;
   [[nodiscard]] bool isMounted() noexcept;
 
   /**
@@ -124,7 +123,6 @@ public:
                      const std::string& commandLine) noexcept;
   static const char* ofsVersionString() noexcept;
   void setDebugMode(bool value) noexcept;
-  static const char* logLevelToString(LogLevel lv) noexcept;
 
   /**
    * @brief Retrieve a list of all processes that were started
@@ -175,7 +173,7 @@ private:
    */
   void cleanup() noexcept;
 
-  LogLevel m_loglevel = LogLevel::Warning;
+  spdlog::level::level_enum m_loglevel = spdlog::level::warn;
   Map m_map;
   Map m_fileMap;
   std::vector<forceLoadLibrary_t> m_forceLoadLibraries;

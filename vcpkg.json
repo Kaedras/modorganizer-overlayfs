@@ -2,8 +2,5 @@
   "name" : "mo2-overlayfs",
   "version-string" : "1.0.0",
   "builtin-baseline" : "6220088b956e4e4c7de27fb5f5eff8c9745cb4c8",
-  "dependencies" : [ {
-    "name" : "spdlog",
-    "version>=" : "1.15.0#1"
-  } ]
+  "dependencies" : [ "spdlog" ]
 }
