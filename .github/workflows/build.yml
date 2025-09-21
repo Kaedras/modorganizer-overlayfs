@@ -33,12 +33,12 @@ jobs:
         run: cmake --build build --config RelWithDebInfo --target install
 
       - name: Pack artifact
-        run: tar -I 'zstd -19 -T0' -cf mo2-overlayfs.tar.zst -C ./install/ .
+        run: tar -I 'zstd -19 -T0' -cf mo2-overlayfs_${{ github.ref_name }}.tar.zst -C ./install/ .
 
       - uses: actions/upload-artifact@v4
         with:
           name: mo2-overlayfs
-          path: mo2-overlayfs.tar.zst
+          path: mo2-overlayfs_${{ github.ref_name }}.tar.zst
 
   publish:
     if: github.ref_type == 'tag'
