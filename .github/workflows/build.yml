@@ -19,6 +19,8 @@ jobs:
 
       - name: Install Qt
         uses: jurplel/install-qt-action@v4
+        with:
+          archives: qtbase
 
       - uses: actions/checkout@v5
 
