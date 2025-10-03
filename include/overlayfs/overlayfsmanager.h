@@ -128,7 +128,7 @@ public:
   /**
    * @brief Retrieve a list of all processes that were started
    */
-  std::vector<pid_t> getOverlayFsProcessList() const noexcept;
+  [[nodiscard]] std::vector<pid_t> getOverlayFsProcessList() const noexcept;
 
 private:
   struct map_t
