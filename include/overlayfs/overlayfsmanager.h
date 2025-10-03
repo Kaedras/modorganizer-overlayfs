@@ -4,17 +4,18 @@
 #include <filesystem>
 #include <vector>
 
-#include <spdlog/sinks/basic_file_sink.h>
-#include <spdlog/spdlog.h>
-
 #ifndef EXPORT
 #define EXPORT __attribute__((visibility("default")))
 #endif
 
+// forward declarations
 class QProcess;
-
 namespace spdlog
 {
+namespace level
+{
+  enum level_enum : int;
+}
 class logger;
 }
 
@@ -173,7 +174,7 @@ private:
    */
   void cleanup() noexcept;
 
-  spdlog::level::level_enum m_loglevel = spdlog::level::warn;
+  spdlog::level::level_enum m_loglevel;
   Map m_map;
   Map m_fileMap;
   std::vector<forceLoadLibrary_t> m_forceLoadLibraries;

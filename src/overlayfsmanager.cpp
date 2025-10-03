@@ -516,7 +516,7 @@ std::vector<pid_t> OverlayFsManager::getOverlayFsProcessList() const noexcept
 }
 
 OverlayFsManager::OverlayFsManager(std::filesystem::path file) noexcept
-    : m_logFile(std::move(file))
+    : m_loglevel(spdlog::level::warn), m_logFile(std::move(file))
 {
   createLogger();
 }
