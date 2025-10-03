@@ -5,7 +5,7 @@ IndentWidth: 2
 ---
 Language: Cpp
 DeriveLineEnding: false
-UseCRLF: true
+UseCRLF: false
 DerivePointerAlignment: false
 PointerAlignment: Left
 AlignConsecutiveAssignments: true

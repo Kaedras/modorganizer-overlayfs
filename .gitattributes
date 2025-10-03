@@ -3,5 +3,5 @@
 
 # Explicitly declare text files you want to always be normalized and converted
 # to native line endings on checkout.
-*.cpp text eol=crlf
-*.h text eol=crlf
+*.cpp text eol=lf
+*.h text eol=lf
