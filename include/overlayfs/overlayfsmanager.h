@@ -17,7 +17,7 @@ namespace level
   enum level_enum : int;
 }
 class logger;
-}
+}  // namespace spdlog
 
 class EXPORT OverlayFsManager
 {
