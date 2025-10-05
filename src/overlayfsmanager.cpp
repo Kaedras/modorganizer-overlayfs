@@ -241,133 +241,7 @@ bool OverlayFsManager::mount() noexcept
   scoped_lock mountLock(m_mountMutex);
   scoped_lock dataLock(m_dataMutex);
 
-  if (m_mounted) {
-    return true;
-  }
-
-  if (!createOverlayFsMounts() || !processFiles()) {
-    return false;
-  }
-
-  for (auto& mount : m_mounts) {
-    // create lowerDirs string
-    string lowerDirs;
-    for (const std::filesystem::path& dir : mount.lowerDirs) {
-      lowerDirs += dir.string() + ':';
-    }
-    // add destination to lowerDirs
-    lowerDirs += mount.target.generic_string();
-
-    if (mount.upperDir.empty() && !mount.whiteout.empty()) {
-      m_logger->warn("cannot create whiteout files without upper dir");
-    } else {
-      // create whiteout files
-      for (const auto& whiteout : mount.whiteout) {
-        fs::path whiteoutFile = mount.upperDir / whiteout;
-        // todo: store a list of created directories for later deletion
-        create_directories(whiteoutFile.parent_path());
-        // create a character device with device number 0/0
-        int r = mknod(whiteoutFile.c_str(), S_IFCHR, makedev(0, 0));
-        if (r != 0) {
-          const int e = errno;
-          m_logger->error("could not create whiteout file {}: {}",
-                          whiteoutFile.string(), strerror(e));
-          exit(1);
-        }
-        m_createdWhiteoutFiles.emplace_back(whiteoutFile);
-      }
-    }
-
-    QProcess p;
-    p.setProgram(u"fuse-overlayfs"_s);
-    p.setProcessChannelMode(QProcess::MergedChannels);
-
-    // create arguments
-    QStringList args;
-    args << u"--debug"_s;
-    // the upper dir can be empty for read-only
-    if (!mount.upperDir.empty()) {
-      args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.c_str());
-      args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
-    }
-    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(lowerDirs.c_str());
-    args << QString::fromStdString(mount.target.generic_string());
-
-    p.setArguments(args);
-
-    m_logger->debug("mounting overlay fs with command: {} {}",
-                    p.program().toStdString(), p.arguments().join(' ').toStdString());
-
-    p.start();
-    if (!p.waitForFinished(timeout)) {
-      m_logger->error("mount error: {}", p.errorString().toStdString());
-      return false;
-    }
-
-    QString str = p.readAll();
-    auto lines  = str.split('\n');
-
-    for (const auto& line : lines) {
-      if (!line.isEmpty()) {
-        m_logger->info(line.toStdString());
-      }
-    }
-
-    if (p.exitCode() != 0) {
-      const int e = errno;
-      m_logger->error("mount failed with exit code {}: {}, errno: {}", p.exitCode(),
-                      p.errorString().toStdString(), strerror(e));
-      return false;
-    }
-
-    mount.mounted = true;
-  }
-
-  for (auto& mount : m_fileMounts) {
-    QProcess p;
-    p.setProgram(u"fuse-overlayfs"_s);
-    p.setProcessChannelMode(QProcess::MergedChannels);
-
-    // create arguments
-    QStringList args;
-    args << u"--debug"_s;
-    args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.path());
-    args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
-    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(mount.target.generic_string().c_str());
-    args << QString::fromStdString(mount.target.generic_string());
-
-    p.setArguments(args);
-
-    m_logger->debug("mounting overlayFS with command: {} {}", p.program().toStdString(),
-                    p.arguments().join(' ').toStdString());
-
-    p.start();
-    if (!p.waitForFinished(timeout)) {
-      m_logger->error("mount error: {}", p.errorString().toStdString());
-      return false;
-    }
-
-    QString str = p.readAll();
-    auto lines  = str.split('\n');
-
-    for (const auto& line : lines) {
-      if (!line.isEmpty()) {
-        m_logger->info(line.toStdString());
-      }
-    }
-
-    if (p.exitCode() != 0) {
-      const int e = errno;
-      m_logger->error("mount failed with exit code {}: {}, errno: {}", p.exitCode(),
-                      p.errorString().toStdString(), strerror(e));
-      return false;
-    }
-
-    mount.mounted = true;
-  }
-
-  m_mounted = true;
-  return true;
+  return mountInternal();
 }
 
 bool OverlayFsManager::umount() noexcept
@@ -375,86 +249,7 @@ bool OverlayFsManager::umount() noexcept
   scoped_lock mountLock(m_mountMutex);
   scoped_lock dataLock(m_dataMutex);
 
-  if (!m_mounted) {
-    m_logger->debug("umount: not mounted");
-    return true;
-  }
-
-  if (m_mounts.empty() && m_fileMap.empty()) {
-    m_logger->debug("umount: m_mounts and m_fileMap are empty");
-    return true;
-  }
-
-  error_code ec;
-
-  for (overlayFsData_t& entry : m_mounts) {
-    // can be false on partial mounts
-    if (!entry.mounted) {
-      continue;
-    }
-
-    m_logger->debug("running \"umount {}\"", entry.target.generic_string());
-
-    QProcess p;
-    p.setProgram(u"umount"_s);
-    p.setArguments({QString::fromStdString(entry.target.generic_string())});
-    p.start();
-    bool result = p.waitForFinished(timeout);
-
-    if (!result || p.exitCode() != 0) {
-      m_logger->error("umount returned {}", p.exitCode());
-      return false;
-    }
-    m_logger->debug("umount {} success", entry.target.generic_string());
-    entry.mounted = false;
-
-    // delete whiteout files
-    for (const std::filesystem::path& whiteout : entry.whiteout) {
-      fs::path whiteoutLocation = entry.upperDir / whiteout;
-      // check if the file is actually empty
-      auto size = file_size(whiteoutLocation);
-      if (size != 0) {
-        m_logger->error("umount: whiteout file {} size should be 0, but is {}",
-                        whiteoutLocation.generic_string(), size);
-        continue;
-      }
-      filesystem::remove(whiteoutLocation, ec);
-      if (ec) {
-        m_logger->error("umount: could not remove whiteout file {}: ",
-                        whiteoutLocation.generic_string(), ec.message());
-      } else {
-        m_logger->debug("umount: deleted whiteout file {}",
-                        whiteoutLocation.generic_string());
-      }
-    }
-  }
-  m_mounts.clear();
-
-  for (auto& entry : m_fileMounts) {
-    if (!entry.mounted) {
-      continue;
-    }
-    QProcess p;
-    p.setProgram(u"umount"_s);
-    p.setArguments({QString::fromStdString(entry.target.generic_string())});
-    p.start();
-    bool result = p.waitForFinished(timeout);
-
-    if (!result || p.exitCode() != 0) {
-      m_logger->error("unmount returned {}: {}", p.exitCode(),
-                      p.errorString().toStdString());
-      return false;
-    }
-    m_logger->debug("unmount {} success", entry.target.generic_string());
-    entry.mounted = false;
-  }
-  // symlinks are in a QTemporaryDir, so clearing this vector also removes them
-  m_fileMounts.clear();
-
-  m_fileMap.clear();
-
-  m_mounted = false;
-  return true;
+  return umountInternal();
 }
 
 bool OverlayFsManager::createProcess(const std::string& applicationName,
@@ -464,7 +259,7 @@ bool OverlayFsManager::createProcess(const std::string& applicationName,
   scoped_lock mountLock(m_mountMutex);
 
   if (!m_mounted) {
-    if (!mount()) {
+    if (!mountInternal()) {
       m_logger->error("Not starting process because mount failed");
       return false;
     }
@@ -700,4 +495,219 @@ void OverlayFsManager::cleanup() noexcept
     }
   }
   m_createdDirectories.clear();
+}
+
+bool OverlayFsManager::mountInternal()
+{
+  if (m_mounted) {
+    return true;
+  }
+
+  if (!createOverlayFsMounts() || !processFiles()) {
+    return false;
+  }
+
+  for (auto& mount : m_mounts) {
+    // create lowerDirs string
+    string lowerDirs;
+    for (const std::filesystem::path& dir : mount.lowerDirs) {
+      lowerDirs += dir.string() + ':';
+    }
+    // add destination to lowerDirs
+    lowerDirs += mount.target.generic_string();
+
+    if (mount.upperDir.empty() && !mount.whiteout.empty()) {
+      m_logger->warn("cannot create whiteout files without upper dir");
+    } else {
+      // create whiteout files
+      for (const auto& whiteout : mount.whiteout) {
+        fs::path whiteoutFile = mount.upperDir / whiteout;
+        // todo: store a list of created directories for later deletion
+        create_directories(whiteoutFile.parent_path());
+        // create a character device with device number 0/0
+        int r = mknod(whiteoutFile.c_str(), S_IFCHR, makedev(0, 0));
+        if (r != 0) {
+          const int e = errno;
+          m_logger->error("could not create whiteout file {}: {}",
+                          whiteoutFile.string(), strerror(e));
+          exit(1);
+        }
+        m_createdWhiteoutFiles.emplace_back(whiteoutFile);
+      }
+    }
+
+    QProcess p;
+    p.setProgram(u"fuse-overlayfs"_s);
+    p.setProcessChannelMode(QProcess::MergedChannels);
+
+    // create arguments
+    QStringList args;
+    args << u"--debug"_s;
+    // the upper dir can be empty for read-only
+    if (!mount.upperDir.empty()) {
+      args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.c_str());
+      args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
+    }
+    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(lowerDirs.c_str());
+    args << QString::fromStdString(mount.target.generic_string());
+
+    p.setArguments(args);
+
+    m_logger->debug("mounting overlay fs with command: {} {}",
+                    p.program().toStdString(), p.arguments().join(' ').toStdString());
+
+    p.start();
+    if (!p.waitForFinished(timeout)) {
+      m_logger->error("mount error: {}", p.errorString().toStdString());
+      return false;
+    }
+
+    QString str = p.readAll();
+    auto lines  = str.split('\n');
+
+    for (const auto& line : lines) {
+      if (!line.isEmpty()) {
+        m_logger->info(line.toStdString());
+      }
+    }
+
+    if (p.exitCode() != 0) {
+      const int e = errno;
+      m_logger->error("mount failed with exit code {}: {}, errno: {}", p.exitCode(),
+                      p.errorString().toStdString(), strerror(e));
+      return false;
+    }
+
+    mount.mounted = true;
+  }
+
+  for (auto& mount : m_fileMounts) {
+    QProcess p;
+    p.setProgram(u"fuse-overlayfs"_s);
+    p.setProcessChannelMode(QProcess::MergedChannels);
+
+    // create arguments
+    QStringList args;
+    args << u"--debug"_s;
+    args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.path());
+    args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
+    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(mount.target.generic_string().c_str());
+    args << QString::fromStdString(mount.target.generic_string());
+
+    p.setArguments(args);
+
+    m_logger->debug("mounting overlayFS with command: {} {}", p.program().toStdString(),
+                    p.arguments().join(' ').toStdString());
+
+    p.start();
+    if (!p.waitForFinished(timeout)) {
+      m_logger->error("mount error: {}", p.errorString().toStdString());
+      return false;
+    }
+
+    QString str = p.readAll();
+    auto lines  = str.split('\n');
+
+    for (const auto& line : lines) {
+      if (!line.isEmpty()) {
+        m_logger->info(line.toStdString());
+      }
+    }
+
+    if (p.exitCode() != 0) {
+      const int e = errno;
+      m_logger->error("mount failed with exit code {}: {}, errno: {}", p.exitCode(),
+                      p.errorString().toStdString(), strerror(e));
+      return false;
+    }
+
+    mount.mounted = true;
+  }
+
+  m_mounted = true;
+  return true;
+}
+
+bool OverlayFsManager::umountInternal()
+{
+  if (!m_mounted) {
+    m_logger->debug("umount: not mounted");
+    return true;
+  }
+
+  if (m_mounts.empty() && m_fileMap.empty()) {
+    m_logger->debug("umount: m_mounts and m_fileMap are empty");
+    return true;
+  }
+
+  error_code ec;
+
+  for (overlayFsData_t& entry : m_mounts) {
+    // can be false on partial mounts
+    if (!entry.mounted) {
+      continue;
+    }
+
+    m_logger->debug("running \"umount {}\"", entry.target.generic_string());
+
+    QProcess p;
+    p.setProgram(u"umount"_s);
+    p.setArguments({QString::fromStdString(entry.target.generic_string())});
+    p.start();
+    bool result = p.waitForFinished(timeout);
+
+    if (!result || p.exitCode() != 0) {
+      m_logger->error("umount returned {}", p.exitCode());
+      return false;
+    }
+    m_logger->debug("umount {} success", entry.target.generic_string());
+    entry.mounted = false;
+
+    // delete whiteout files
+    for (const std::filesystem::path& whiteout : entry.whiteout) {
+      fs::path whiteoutLocation = entry.upperDir / whiteout;
+      // check if the file is actually empty
+      auto size = file_size(whiteoutLocation);
+      if (size != 0) {
+        m_logger->error("umount: whiteout file {} size should be 0, but is {}",
+                        whiteoutLocation.generic_string(), size);
+        continue;
+      }
+      filesystem::remove(whiteoutLocation, ec);
+      if (ec) {
+        m_logger->error("umount: could not remove whiteout file {}: ",
+                        whiteoutLocation.generic_string(), ec.message());
+      } else {
+        m_logger->debug("umount: deleted whiteout file {}",
+                        whiteoutLocation.generic_string());
+      }
+    }
+  }
+  m_mounts.clear();
+
+  for (auto& entry : m_fileMounts) {
+    if (!entry.mounted) {
+      continue;
+    }
+    QProcess p;
+    p.setProgram(u"umount"_s);
+    p.setArguments({QString::fromStdString(entry.target.generic_string())});
+    p.start();
+    bool result = p.waitForFinished(timeout);
+
+    if (!result || p.exitCode() != 0) {
+      m_logger->error("unmount returned {}: {}", p.exitCode(),
+                      p.errorString().toStdString());
+      return false;
+    }
+    m_logger->debug("unmount {} success", entry.target.generic_string());
+    entry.mounted = false;
+  }
+  // symlinks are in a QTemporaryDir, so clearing this vector also removes them
+  m_fileMounts.clear();
+
+  m_fileMap.clear();
+
+  m_mounted = false;
+  return true;
 }

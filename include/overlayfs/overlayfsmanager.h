@@ -174,6 +174,10 @@ private:
    */
   void cleanup() noexcept;
 
+  // mount functions without locks for internal use
+  bool mountInternal();
+  bool umountInternal();
+
   spdlog::level::level_enum m_loglevel;
   Map m_map;
   Map m_fileMap;
