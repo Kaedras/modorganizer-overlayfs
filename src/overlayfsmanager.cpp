@@ -127,8 +127,29 @@ bool OverlayFsManager::addDirectory(const std::filesystem::path& source,
 
 std::vector<std::filesystem::path> OverlayFsManager::createOverlayFsDump() noexcept
 {
-  STUB();
-  return {};
+  scoped_lock mountLock(m_mountMutex);
+  scoped_lock dataLock(m_dataMutex);
+
+  std::vector<std::filesystem::path> result;
+  result.reserve(1000);
+
+  if (!mountInternal()) {
+    return result;
+  }
+
+  for (const auto& mount : m_mounts) {
+    for (const auto& item : fs::recursive_directory_iterator(mount.target)) {
+      result.push_back(item.path());
+    }
+  }
+  for (const auto& mount : m_fileMounts) {
+    for (const auto& item : fs::recursive_directory_iterator(mount.target)) {
+      result.push_back(item.path());
+    }
+  }
+
+  result.shrink_to_fit();
+  return result;
 }
 
 void OverlayFsManager::setLogFile(const std::filesystem::path& file) noexcept
