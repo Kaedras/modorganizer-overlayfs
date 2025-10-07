@@ -174,7 +174,7 @@ void OverlayFsManager::clearSkipFileSuffixes() noexcept
   m_fileSuffixBlacklist.clear();
 }
 
-void OverlayFsManager::addSkipDirectory(const std::filesystem::path& directory) noexcept
+void OverlayFsManager::addSkipDirectory(const std::string& directory) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 

@@ -88,7 +88,7 @@ public:
    * will have the .git directory skipped during directory linking
    * @param directory Name of the directory
    */
-  void addSkipDirectory(const std::filesystem::path& directory) noexcept;
+  void addSkipDirectory(const std::string& directory) noexcept;
 
   /**
    * @brief Clears the directory skip-list
