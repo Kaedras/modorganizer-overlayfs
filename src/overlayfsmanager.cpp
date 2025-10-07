@@ -29,7 +29,9 @@ using namespace Qt::StringLiterals;
 
 void OverlayFsManager::setLogLevel(spdlog::level::level_enum level) noexcept
 {
+  m_logger->debug("setting log level to {}", spdlog::level::to_string_view(level));
   m_loglevel = level;
+  m_logger->set_level(level);
 }
 
 bool OverlayFsManager::isMounted() noexcept
@@ -44,12 +46,13 @@ void OverlayFsManager::setWorkDir(const std::filesystem::path& directory,
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("setting work dir to '{}'", directory.string());
   if (!exists(directory)) {
     if (create) {
       create_directories(directory);
       m_workDir = directory;
     } else {
-      SPDLOG_ERROR("Directory does not exist");
+      m_logger->error("Directory does not exist");
     }
   } else {
     m_workDir = directory;
@@ -61,12 +64,13 @@ void OverlayFsManager::setUpperDir(const std::filesystem::path& directory,
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("setting upper dir to '{}'", directory.string());
   if (!exists(directory)) {
     if (create) {
       create_directories(directory);
       m_upperDir = directory;
     } else {
-      SPDLOG_ERROR("Directory does not exist");
+      m_logger->error("Directory does not exist");
     }
   } else {
     m_upperDir = directory;
@@ -78,6 +82,8 @@ bool OverlayFsManager::addFile(const std::filesystem::path& source,
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("adding file '{}' with destination '{}'", source.string(),
+                  destination.string());
   if (is_directory(source)) {
     m_logger->error("source file must not be a directory");
     return false;
@@ -104,6 +110,8 @@ bool OverlayFsManager::addDirectory(const std::filesystem::path& source,
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("adding directory '{}' with destination '{}'", source.string(),
+                  destination.string());
   if (!is_directory(source)) {
     m_logger->error("source must be a directory");
     return false;
@@ -130,6 +138,7 @@ std::vector<std::filesystem::path> OverlayFsManager::createOverlayFsDump() noexc
   scoped_lock mountLock(m_mountMutex);
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("creating overlayfs dump");
   std::vector<std::filesystem::path> result;
   result.reserve(1000);
 
@@ -156,6 +165,7 @@ void OverlayFsManager::setLogFile(const std::filesystem::path& file) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("setting log file to '{}'", file.string());
   m_logFile = file;
   createLogger();
 }
@@ -164,6 +174,7 @@ void OverlayFsManager::addSkipFileSuffix(const std::string& fileSuffix) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("added skip file suffix '{}'", fileSuffix);
   m_fileSuffixBlacklist.emplace_back(fileSuffix);
 }
 
@@ -171,6 +182,7 @@ void OverlayFsManager::clearSkipFileSuffixes() noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("clearing skip file suffixes");
   m_fileSuffixBlacklist.clear();
 }
 
@@ -178,6 +190,7 @@ void OverlayFsManager::addSkipDirectory(const std::string& directory) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("added skip directory '{}'", directory);
   m_directoryBlacklist.emplace_back(directory);
 }
 
@@ -185,6 +198,7 @@ void OverlayFsManager::clearSkipDirectories() noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("clearing skip directories");
   m_directoryBlacklist.clear();
 }
 
@@ -194,6 +208,8 @@ void OverlayFsManager::forceLoadLibrary(
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("adding forced library '{}' for process '{}'", libraryPath.string(),
+                  processName.string());
   m_forceLoadLibraries.emplace_back(processName, libraryPath);
 }
 
@@ -201,6 +217,7 @@ void OverlayFsManager::clearLibraryForceLoads() noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
+  m_logger->debug("clearing forced libraries");
   m_forceLoadLibraries.clear();
 }
 
@@ -279,6 +296,8 @@ bool OverlayFsManager::createProcess(const std::string& applicationName,
   scoped_lock dataLock(m_dataMutex);
   scoped_lock mountLock(m_mountMutex);
 
+  m_logger->debug("creating process '{}' with commandline '{}'", applicationName,
+                  commandLine);
   if (!m_mounted) {
     if (!mountInternal()) {
       m_logger->error("Not starting process because mount failed");
@@ -520,11 +539,14 @@ void OverlayFsManager::cleanup() noexcept
 
 bool OverlayFsManager::mountInternal()
 {
+  m_logger->debug("mounting");
   if (m_mounted) {
+    m_logger->debug("already mounted");
     return true;
   }
 
   if (!createOverlayFsMounts() || !processFiles()) {
+    m_logger->error("error processing mount info");
     return false;
   }
 
@@ -651,13 +673,14 @@ bool OverlayFsManager::mountInternal()
 
 bool OverlayFsManager::umountInternal()
 {
+  m_logger->debug("unmounting");
   if (!m_mounted) {
-    m_logger->debug("umount: not mounted");
+    m_logger->debug("not mounted");
     return true;
   }
 
   if (m_mounts.empty() && m_fileMap.empty()) {
-    m_logger->debug("umount: m_mounts and m_fileMap are empty");
+    m_logger->debug("m_mounts and m_fileMap are empty");
     return true;
   }
 
@@ -690,16 +713,16 @@ bool OverlayFsManager::umountInternal()
       // check if the file is actually empty
       auto size = file_size(whiteoutLocation);
       if (size != 0) {
-        m_logger->error("umount: whiteout file {} size should be 0, but is {}",
+        m_logger->error("[umount] whiteout file {} size should be 0, but is {}",
                         whiteoutLocation.generic_string(), size);
         continue;
       }
       filesystem::remove(whiteoutLocation, ec);
       if (ec) {
-        m_logger->error("umount: could not remove whiteout file {}: ",
+        m_logger->error("[umount] could not remove whiteout file {}: ",
                         whiteoutLocation.generic_string(), ec.message());
       } else {
-        m_logger->debug("umount: deleted whiteout file {}",
+        m_logger->debug("[umount] deleted whiteout file {}",
                         whiteoutLocation.generic_string());
       }
     }
