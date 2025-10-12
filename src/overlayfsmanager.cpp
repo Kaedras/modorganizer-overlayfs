@@ -386,9 +386,7 @@ bool OverlayFsManager::processFiles() noexcept
   // create a set of unique destination directories
   set<fs::path> destinations;
   for (const map_t& entry : m_fileMap) {
-    if (!destinations.contains(entry.destination.parent_path())) {
-      destinations.emplace(entry.destination.parent_path());
-    }
+    destinations.emplace(entry.destination.parent_path());
   }
 
   // check if a destination also exists in m_mounts
@@ -439,12 +437,8 @@ bool OverlayFsManager::createOverlayFsMounts() noexcept
   set<fs::path> sources;
   set<fs::path> destinations;
   for (const map_t& entry : m_map) {
-    if (!sources.contains(entry.source)) {
-      sources.emplace(entry.source);
-    }
-    if (!destinations.contains(entry.destination)) {
-      destinations.emplace(entry.destination);
-    }
+    sources.emplace(entry.source);
+    destinations.emplace(entry.destination);
   }
 
   // check if a source is also a destination
