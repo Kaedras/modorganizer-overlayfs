@@ -1,5 +1,6 @@
 #include "overlayfs/overlayfsmanager.h"
 
+#include <QDirIterator>
 #include <QProcess>
 #include <cstring>
 #include <filesystem>
@@ -41,50 +42,62 @@ bool OverlayFsManager::isMounted() noexcept
   return m_mounted;
 }
 
-void OverlayFsManager::setWorkDir(const std::filesystem::path& directory,
-                                  bool create) noexcept
+void OverlayFsManager::setWorkDir(const QString& directory, bool create) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("setting work dir to '{}'", directory.string());
-  if (!exists(directory)) {
+  m_logger->debug("setting work dir to '{}'", directory.toStdString());
+
+  QDir dir(directory);
+  if (!dir.exists()) {
     if (create) {
-      create_directories(directory);
+      if (!dir.mkpath(u"."_s)) {
+        m_logger->error("Error creating directory {}", directory.toStdString());
+        return;
+      }
       m_workDir = directory;
     } else {
-      m_logger->error("Directory does not exist");
+      m_logger->error("Directory '{}' does not exist", directory.toStdString());
     }
   } else {
     m_workDir = directory;
   }
 }
 
-void OverlayFsManager::setUpperDir(const std::filesystem::path& directory,
-                                   bool create) noexcept
+void OverlayFsManager::setUpperDir(const QString& directory, bool create) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("setting upper dir to '{}'", directory.string());
-  if (!exists(directory)) {
+  QDir dir(directory);
+
+  m_logger->debug("setting upper dir to '{}'", directory.toStdString());
+  if (!dir.exists()) {
     if (create) {
-      create_directories(directory);
+      if (!dir.mkpath(u"."_s)) {
+        m_logger->error("Error creating directory {}", directory.toStdString());
+        return;
+      }
       m_upperDir = directory;
     } else {
-      m_logger->error("Directory does not exist");
+      m_logger->error("Directory '{}' does not exist", directory.toStdString());
     }
   } else {
     m_upperDir = directory;
   }
 }
 
-bool OverlayFsManager::addFile(const std::filesystem::path& source,
-                               const std::filesystem::path& destination) noexcept
+bool OverlayFsManager::addFile(const QString& source,
+                               const QString& destination) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("adding file '{}' with destination '{}'", source.string(),
-                  destination.string());
-  if (is_directory(source)) {
+  m_logger->debug("adding file '{}' with destination '{}'", source.toStdString(),
+                  destination.toStdString());
+
+  QFileInfo sourceInfo(source);
+  QFileInfo destinationInfo(destination);
+
+  if (sourceInfo.isDir()) {
     m_logger->error("source file must not be a directory");
     return false;
   }
@@ -97,26 +110,37 @@ bool OverlayFsManager::addFile(const std::filesystem::path& source,
   }
 
   // append the file name if destination is a directory
-  if (is_directory(destination)) {
-    m_fileMap.emplace_back(source, destination / source.filename());
+  if (destinationInfo.isDir()) {
+    m_fileMap.emplace_back(source, destination % "/"_L1 % source);
   } else {
     m_fileMap.emplace_back(source, destination);
   }
   return true;
 }
 
-bool OverlayFsManager::addDirectory(const std::filesystem::path& source,
-                                    const std::filesystem::path& destination) noexcept
+bool OverlayFsManager::addDirectory(const QString& source,
+                                    const QString& destination) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("adding directory '{}' with destination '{}'", source.string(),
-                  destination.string());
-  if (!is_directory(source)) {
+  m_logger->debug("adding directory '{}' with destination '{}'", source.toStdString(),
+                  destination.toStdString());
+
+  QFileInfo sourceInfo(source);
+  QFileInfo destinationInfo(destination);
+
+  if (!sourceInfo.exists()) {
+    // create the source if it does not exist
+    QDir(source).mkpath(u"."_s);
+  } else if (!sourceInfo.isDir()) {
     m_logger->error("source must be a directory");
     return false;
   }
-  if (!is_directory(destination)) {
+
+  if (!destinationInfo.exists()) {
+    // create the destination if it does not exist
+    QDir(destination).mkpath(u"."_s);
+  } else if (!destinationInfo.isDir()) {
     m_logger->error("destination must be a directory");
     return false;
   }
@@ -133,13 +157,13 @@ bool OverlayFsManager::addDirectory(const std::filesystem::path& source,
   return true;
 }
 
-std::vector<std::filesystem::path> OverlayFsManager::createOverlayFsDump() noexcept
+QStringList OverlayFsManager::createOverlayFsDump() noexcept
 {
   scoped_lock mountLock(m_mountMutex);
   scoped_lock dataLock(m_dataMutex);
 
   m_logger->debug("creating overlayfs dump");
-  std::vector<std::filesystem::path> result;
+  QStringList result;
   result.reserve(1000);
 
   if (!mountInternal()) {
@@ -147,13 +171,15 @@ std::vector<std::filesystem::path> OverlayFsManager::createOverlayFsDump() noexc
   }
 
   for (const auto& mount : m_mounts) {
-    for (const auto& item : fs::recursive_directory_iterator(mount.target)) {
-      result.push_back(item.path());
+    QDirIterator iter(mount.target, QDirIterator::Subdirectories);
+    while (iter.hasNext()) {
+      result << iter.next();
     }
   }
   for (const auto& mount : m_fileMounts) {
-    for (const auto& item : fs::recursive_directory_iterator(mount.target)) {
-      result.push_back(item.path());
+    QDirIterator iter(mount.target, QDirIterator::Subdirectories);
+    while (iter.hasNext()) {
+      result << iter.next();
     }
   }
 
@@ -161,20 +187,20 @@ std::vector<std::filesystem::path> OverlayFsManager::createOverlayFsDump() noexc
   return result;
 }
 
-void OverlayFsManager::setLogFile(const std::filesystem::path& file) noexcept
+void OverlayFsManager::setLogFile(const QString& file) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("setting log file to '{}'", file.string());
+  m_logger->debug("setting log file to '{}'", file.toStdString());
   m_logFile = file;
   createLogger();
 }
 
-void OverlayFsManager::addSkipFileSuffix(const std::string& fileSuffix) noexcept
+void OverlayFsManager::addSkipFileSuffix(const QString& fileSuffix) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("added skip file suffix '{}'", fileSuffix);
+  m_logger->debug("added skip file suffix '{}'", fileSuffix.toStdString());
   m_fileSuffixBlacklist.emplace_back(fileSuffix);
 }
 
@@ -186,11 +212,11 @@ void OverlayFsManager::clearSkipFileSuffixes() noexcept
   m_fileSuffixBlacklist.clear();
 }
 
-void OverlayFsManager::addSkipDirectory(const std::string& directory) noexcept
+void OverlayFsManager::addSkipDirectory(const QString& directory) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("added skip directory '{}'", directory);
+  m_logger->debug("added skip directory '{}'", directory.toStdString());
   m_directoryBlacklist.emplace_back(directory);
 }
 
@@ -202,14 +228,13 @@ void OverlayFsManager::clearSkipDirectories() noexcept
   m_directoryBlacklist.clear();
 }
 
-void OverlayFsManager::forceLoadLibrary(
-    const std::filesystem::path& processName,
-    const std::filesystem::path& libraryPath) noexcept
+void OverlayFsManager::forceLoadLibrary(const QString& processName,
+                                        const QString& libraryPath) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
 
-  m_logger->debug("adding forced library '{}' for process '{}'", libraryPath.string(),
-                  processName.string());
+  m_logger->debug("adding forced library '{}' for process '{}'",
+                  libraryPath.toStdString(), processName.toStdString());
   m_forceLoadLibraries.emplace_back(processName, libraryPath);
 }
 
@@ -248,29 +273,29 @@ void OverlayFsManager::dryrun() noexcept
   m_logger->info("directories");
   int i = 0;
   for (const auto& mount : m_mounts) {
-    string lowerDirs;
+    QString lowerDirs;
 
     m_logger->info(" . {}", i++);
 
-    for (const auto& lowerDir : mount.lowerDirs) {
-      m_logger->info("   . {} -> {}", lowerDir.generic_string(),
-                     mount.target.generic_string());
-      lowerDirs += lowerDir.string() + ":";
+    for (const QString& lowerDir : mount.lowerDirs) {
+      m_logger->info("   . {} -> {}", lowerDir.toStdString(),
+                     mount.target.toStdString());
+      lowerDirs += lowerDir % ":"_L1;
     }
     if (!mount.whiteout.empty()) {
       m_logger->info("ignored files/directories:");
       for (const auto& whiteout : mount.whiteout) {
-        m_logger->info("   . {}", whiteout.generic_string());
+        m_logger->info("   . {}", whiteout.toStdString());
       }
     }
-    lowerDirs.pop_back();
+    lowerDirs.chop(1);
   }
 
   m_logger->info("files:");
 
   for (const auto& file : m_fileMap) {
-    m_logger->info(" . {} -> {}", file.source.generic_string(),
-                   file.destination.generic_string());
+    m_logger->info(" . {} -> {}", file.source.toStdString(),
+                   file.destination.toStdString());
   }
 }
 
@@ -290,14 +315,14 @@ bool OverlayFsManager::umount() noexcept
   return umountInternal();
 }
 
-bool OverlayFsManager::createProcess(const std::string& applicationName,
-                                     const std::string& commandLine) noexcept
+bool OverlayFsManager::createProcess(const QString& applicationName,
+                                     const QString& commandLine) noexcept
 {
   scoped_lock dataLock(m_dataMutex);
   scoped_lock mountLock(m_mountMutex);
 
-  m_logger->debug("creating process '{}' with commandline '{}'", applicationName,
-                  commandLine);
+  m_logger->debug("creating process '{}' with commandline '{}'",
+                  applicationName.toStdString(), commandLine.toStdString());
   if (!m_mounted) {
     if (!mountInternal()) {
       m_logger->error("Not starting process because mount failed");
@@ -308,12 +333,11 @@ bool OverlayFsManager::createProcess(const std::string& applicationName,
   // todo: implement handling of m_forceLoadLibraries
 
   auto p = make_unique<QProcess>();
-  p->setProgram(QString::fromStdString(applicationName));
-  p->setArguments(QProcess::splitCommand(QString::fromStdString(commandLine)));
+  p->setProgram(applicationName);
+  p->setArguments(QProcess::splitCommand(commandLine));
   p->start();
   if (p->waitForStarted()) {
-    m_logger->debug("created process \"{} {}\" with pid {}", applicationName,
-                    commandLine, p->processId());
+    m_logger->debug("created process with pid {}", p->processId());
 
     QObject::connect(p.get(), &QProcess::finished, [this] {
       m_logger->debug("process finished, unmounting");
@@ -350,7 +374,7 @@ std::vector<pid_t> OverlayFsManager::getOverlayFsProcessList() const noexcept
   return pids;
 }
 
-OverlayFsManager::OverlayFsManager(std::filesystem::path file) noexcept
+OverlayFsManager::OverlayFsManager(QString file) noexcept
     : m_loglevel(spdlog::level::warn), m_logFile(std::move(file))
 {
   createLogger();
@@ -368,7 +392,8 @@ OverlayFsManager::~OverlayFsManager() noexcept
 void OverlayFsManager::createLogger() noexcept
 {
   auto stdoutSink = std::make_shared<spdlog::sinks::stdout_sink_mt>();
-  auto fileSink   = std::make_shared<spdlog::sinks::basic_file_sink_mt>(m_logFile);
+  auto fileSink =
+      std::make_shared<spdlog::sinks::basic_file_sink_mt>(m_logFile.toStdString());
 
   spdlog::sinks_init_list sink_list = {stdoutSink, fileSink};
 
@@ -384,9 +409,9 @@ bool OverlayFsManager::processFiles() noexcept
   // even if the destination files exist
 
   // create a set of unique destination directories
-  set<fs::path> destinations;
+  set<QString> destinations;
   for (const map_t& entry : m_fileMap) {
-    destinations.emplace(entry.destination.parent_path());
+    destinations.emplace(QFileInfo(entry.destination).absolutePath());
   }
 
   // check if a destination also exists in m_mounts
@@ -399,30 +424,32 @@ bool OverlayFsManager::processFiles() noexcept
     }
   }
 
-  error_code ec;
   for (const auto& destination : destinations) {
-    m_logger->debug("processing file destination {}", destination.generic_string());
+    m_logger->debug("processing file destination {}", destination.toStdString());
     fileData_t data;
-    data.target   = destination;
-    data.upperDir = QTemporaryDir(absolute((destination / ".").parent_path()).c_str());
-    data.workDir  = QTemporaryDir(absolute((destination / ".").parent_path()).c_str());
+    data.target = destination;
+
+    QString templatePath = destination % "_tmp_XXXXXX"_L1;
+
+    data.upperDir = QTemporaryDir(templatePath);
+    data.workDir  = QTemporaryDir(templatePath);
 
     m_logger->debug("created upper dir {}", data.upperDir.path().toStdString());
     m_logger->debug("created work dir {}", data.workDir.path().toStdString());
 
     // create symlinks
     for (const map_t& entry : m_fileMap) {
-      if (entry.destination.parent_path() == destination) {
-        fs::path symlinkPath =
-            data.upperDir.path().toStdString() / entry.destination.filename();
-        create_symlink(entry.source, symlinkPath, ec);
-        if (ec) {
-          m_logger->error("error creating symlink {}: {}", symlinkPath.generic_string(),
-                          ec.message());
+      QFileInfo dstInfo(entry.destination);
+      if (dstInfo.path() == destination) {
+        QString symlinkPath = data.upperDir.path() % "/"_L1 % dstInfo.fileName();
+        QFile symlinkFile(entry.source);
+        if (!symlinkFile.link(symlinkPath)) {
+          m_logger->error("error creating symlink {}: {}", symlinkPath.toStdString(),
+                          symlinkFile.errorString().toStdString());
           return false;
         }
-        m_logger->debug("created symlink {} to {}", symlinkPath.generic_string(),
-                        entry.destination.generic_string());
+        m_logger->debug("created symlink {} to {}", symlinkPath.toStdString(),
+                        entry.destination.toStdString());
       }
     }
     m_fileMounts.push_back(std::move(data));
@@ -434,18 +461,18 @@ bool OverlayFsManager::processFiles() noexcept
 bool OverlayFsManager::createOverlayFsMounts() noexcept
 {
   // create sets of unique sources and destinations
-  set<fs::path> sources;
-  set<fs::path> destinations;
+  set<QString> sources;
+  set<QString> destinations;
   for (const map_t& entry : m_map) {
     sources.emplace(entry.source);
     destinations.emplace(entry.destination);
   }
 
   // check if a source is also a destination
-  for (const fs::path& source : sources) {
+  for (const QString& source : sources) {
     if (destinations.contains(source)) {
       m_logger->error("source {} cannot simultaneously be a destination",
-                      source.generic_string());
+                      source.toStdString());
       return false;
     }
   }
@@ -455,7 +482,7 @@ bool OverlayFsManager::createOverlayFsMounts() noexcept
   m_logger->debug(" . {} destinations", destinations.size());
 
   // group items by destination
-  for (const fs::path& dst : destinations) {
+  for (const QString& dst : destinations) {
     overlayFsData_t data;
 
     data.target = dst;
@@ -463,26 +490,29 @@ bool OverlayFsManager::createOverlayFsMounts() noexcept
     for (const auto& entry : m_map) {
       if (entry.destination == dst) {
         // add overwrite directory as upper dir
-        if (entry.source.generic_string().ends_with("overwrite")) {
+        if (entry.source.endsWith("overwrite"_L1)) {
           data.upperDir = entry.source;
           continue;
         }
         data.lowerDirs.emplace_back(entry.source);
         // create whiteouts
-        for (const auto& iter : fs::recursive_directory_iterator(entry.source)) {
+        QDirIterator iter(entry.source, QDirIterator::Subdirectories);
+        while (iter.hasNext()) {
+          QFileInfo info = iter.nextFileInfo();
+
           // check directory blacklist
-          if (iter.is_directory()) {
-            fs::path directoryName = relative(iter.path(), iter.path().parent_path());
-            if (std::ranges::find(m_directoryBlacklist, directoryName.string()) !=
+          if (info.isDir()) {
+            QString directoryName = info.dir().dirName();
+            if (std::ranges::find(m_directoryBlacklist, directoryName) !=
                 m_directoryBlacklist.end()) {
-              data.whiteout.emplace_back(relative(iter.path(), entry.source));
+              data.whiteout.emplace_back(info.dir().relativeFilePath(entry.source));
             }
           } else {
             // check file suffix blacklist
-            string fileName = iter.path().filename().string();
-            for (const string& suffix : m_fileSuffixBlacklist) {
-              if (fileName.ends_with(suffix)) {
-                data.whiteout.emplace_back(relative(iter.path(), entry.source));
+            QString fileName = info.fileName();
+            for (const QString& suffix : m_fileSuffixBlacklist) {
+              if (fileName.endsWith(suffix)) {
+                data.whiteout.emplace_back(info.dir().relativeFilePath(entry.source));
               }
             }
           }
@@ -492,7 +522,7 @@ bool OverlayFsManager::createOverlayFsMounts() noexcept
     // reverse order of lower dirs to get correct priorities
     std::ranges::reverse(data.lowerDirs);
 
-    if (data.upperDir.empty()) {
+    if (data.upperDir.isEmpty()) {
       // todo: find overwrite directory, set upperDir and workDir
       //  use m_upperDir for now
       data.upperDir = m_upperDir;
@@ -500,7 +530,8 @@ bool OverlayFsManager::createOverlayFsMounts() noexcept
 
     // The “workdir” needs to be an empty directory on the same filesystem as upperDir.
     // -> just create a QTemporaryDir on the upperDir parent path
-    data.workDir = QTemporaryDir(absolute((data.upperDir / ".").parent_path()).c_str());
+    data.workDir =
+        QTemporaryDir(QDir(data.upperDir).absoluteFilePath(u"_tmp_XXXXXX"_s));
     m_logger->debug("created workdir {}", data.workDir.path().toStdString());
 
     m_mounts.push_back(std::move(data));
@@ -512,20 +543,22 @@ bool OverlayFsManager::createOverlayFsMounts() noexcept
 void OverlayFsManager::cleanup() noexcept
 {
   for (const auto& file : m_createdWhiteoutFiles) {
+    QFile f(file);
     // check file size
-    auto size = file_size(file);
+    qint64 size = f.size();
     if (size != 0) {
       m_logger->error("umount: whiteout file {} size should be 0, but is {}",
-                      file.generic_string(), size);
+                      file.toStdString(), size);
       continue;
     }
-    remove(file);
+    f.remove();
   }
   m_createdWhiteoutFiles.clear();
 
   for (const auto& dir : m_createdDirectories) {
-    if (fs::is_empty(dir)) {
-      remove(dir);
+    QDir d(dir);
+    if (d.isEmpty()) {
+      d.removeRecursively();
     }
   }
   m_createdDirectories.clear();
@@ -546,19 +579,20 @@ bool OverlayFsManager::mountInternal()
 
   for (auto& mount : m_mounts) {
     // create lowerDirs string
-    string lowerDirs;
-    for (const std::filesystem::path& dir : mount.lowerDirs) {
-      lowerDirs += dir.string() + ':';
+    QString lowerDirs;
+    for (const QString& dir : mount.lowerDirs) {
+      lowerDirs += dir % ":"_L1;
     }
     // add destination to lowerDirs
-    lowerDirs += mount.target.generic_string();
+    lowerDirs += mount.target;
 
-    if (mount.upperDir.empty() && !mount.whiteout.empty()) {
+    if (mount.upperDir.isEmpty() && !mount.whiteout.empty()) {
       m_logger->warn("cannot create whiteout files without upper dir");
     } else {
       // create whiteout files
       for (const auto& whiteout : mount.whiteout) {
-        fs::path whiteoutFile = mount.upperDir / whiteout;
+        QString whiteoutPath  = mount.upperDir % "/"_L1 % whiteout;
+        fs::path whiteoutFile = whiteoutPath.toStdString();
         // todo: store a list of created directories for later deletion
         create_directories(whiteoutFile.parent_path());
         // create a character device with device number 0/0
@@ -567,9 +601,9 @@ bool OverlayFsManager::mountInternal()
           const int e = errno;
           m_logger->error("could not create whiteout file {}: {}",
                           whiteoutFile.string(), strerror(e));
-          exit(1);
+          return false;
         }
-        m_createdWhiteoutFiles.emplace_back(whiteoutFile);
+        m_createdWhiteoutFiles.emplace_back(whiteoutPath);
       }
     }
 
@@ -581,12 +615,12 @@ bool OverlayFsManager::mountInternal()
     QStringList args;
     args << u"--debug"_s;
     // the upper dir can be empty for read-only
-    if (!mount.upperDir.empty()) {
-      args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.c_str());
+    if (!mount.upperDir.isEmpty()) {
+      args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir);
       args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
     }
-    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(lowerDirs.c_str());
-    args << QString::fromStdString(mount.target.generic_string());
+    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(lowerDirs);
+    args << mount.target;
 
     p.setArguments(args);
 
@@ -628,8 +662,8 @@ bool OverlayFsManager::mountInternal()
     args << u"--debug"_s;
     args << u"-o"_s << u"upperdir=\"%1\""_s.arg(mount.upperDir.path());
     args << u"-o"_s << u"workdir=\"%1\""_s.arg(mount.workDir.path());
-    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(mount.target.generic_string().c_str());
-    args << QString::fromStdString(mount.target.generic_string());
+    args << u"-o"_s << u"lowerdir=\"%1\""_s.arg(mount.target);
+    args << mount.target;
 
     p.setArguments(args);
 
@@ -686,11 +720,11 @@ bool OverlayFsManager::umountInternal()
       continue;
     }
 
-    m_logger->debug("running \"umount {}\"", entry.target.generic_string());
+    m_logger->debug("running \"umount {}\"", entry.target.toStdString());
 
     QProcess p;
     p.setProgram(u"umount"_s);
-    p.setArguments({QString::fromStdString(entry.target.generic_string())});
+    p.setArguments({entry.target});
     p.start();
     bool result = p.waitForFinished(timeout);
 
@@ -698,26 +732,28 @@ bool OverlayFsManager::umountInternal()
       m_logger->error("umount returned {}", p.exitCode());
       return false;
     }
-    m_logger->debug("umount {} success", entry.target.generic_string());
+    m_logger->debug("umount {} success", entry.target.toStdString());
     entry.mounted = false;
 
     // delete whiteout files
-    for (const std::filesystem::path& whiteout : entry.whiteout) {
-      fs::path whiteoutLocation = entry.upperDir / whiteout;
+    for (const QString& whiteout : entry.whiteout) {
+      QString whiteoutLocation(entry.upperDir % "/"_L1 % whiteout);
+      QFile whiteoutFile(whiteoutLocation);
+
       // check if the file is actually empty
-      auto size = file_size(whiteoutLocation);
+      auto size = whiteoutFile.size();
       if (size != 0) {
         m_logger->error("[umount] whiteout file {} size should be 0, but is {}",
-                        whiteoutLocation.generic_string(), size);
+                        whiteoutLocation.toStdString(), size);
         continue;
       }
-      filesystem::remove(whiteoutLocation, ec);
-      if (ec) {
+      if (!whiteoutFile.remove()) {
         m_logger->error("[umount] could not remove whiteout file {}: ",
-                        whiteoutLocation.generic_string(), ec.message());
+                        whiteoutLocation.toStdString(),
+                        whiteoutFile.errorString().toStdString());
       } else {
         m_logger->debug("[umount] deleted whiteout file {}",
-                        whiteoutLocation.generic_string());
+                        whiteoutLocation.toStdString());
       }
     }
   }
@@ -729,7 +765,7 @@ bool OverlayFsManager::umountInternal()
     }
     QProcess p;
     p.setProgram(u"umount"_s);
-    p.setArguments({QString::fromStdString(entry.target.generic_string())});
+    p.setArguments({entry.target});
     p.start();
     bool result = p.waitForFinished(timeout);
 
@@ -738,7 +774,7 @@ bool OverlayFsManager::umountInternal()
                       p.errorString().toStdString());
       return false;
     }
-    m_logger->debug("unmount {} success", entry.target.generic_string());
+    m_logger->debug("unmount {} success", entry.target.toStdString());
     entry.mounted = false;
   }
   // symlinks are in a QTemporaryDir, so clearing this vector also removes them

@@ -23,7 +23,7 @@ class EXPORT OverlayFsManager
 {
 public:
   static OverlayFsManager&
-  getInstance(const std::filesystem::path& file = "overlayfs.log") noexcept
+  getInstance(const QString& file = QStringLiteral("overlayfs.log")) noexcept
   {
     static OverlayFsManager instance(file);
     return instance;
@@ -40,32 +40,29 @@ public:
    * @param directory Workdir to use. Must be on the same file system as the upper dir.
    * @param create create the directory if it does not exist
    */
-  void setWorkDir(const std::filesystem::path& directory, bool create = false) noexcept;
+  void setWorkDir(const QString& directory, bool create = false) noexcept;
 
   /**
    * @brief Sets the upper dir and optionally creates it if it does not exist.
    * @param directory Upper dir to use. Must be on the same file system as workdir.
    * @param create Create the directory if it does not exist.
    */
-  void setUpperDir(const std::filesystem::path& directory,
-                   bool create = false) noexcept;
+  void setUpperDir(const QString& directory, bool create = false) noexcept;
 
-  bool addFile(const std::filesystem::path& source,
-               const std::filesystem::path& destination) noexcept;
+  bool addFile(const QString& source, const QString& destination) noexcept;
 
   /**
    * @param source
    * @param destination
    */
-  bool addDirectory(const std::filesystem::path& source,
-                    const std::filesystem::path& destination) noexcept;
+  bool addDirectory(const QString& source, const QString& destination) noexcept;
 
   /**
    * retrieves a readable representation of the overlay fs tree
    */
-  std::vector<std::filesystem::path> createOverlayFsDump() noexcept;
+  QStringList createOverlayFsDump() noexcept;
 
-  void setLogFile(const std::filesystem::path& file) noexcept;
+  void setLogFile(const QString& file) noexcept;
 
   /**
    * @brief Adds a file suffix to a list to skip during file linking
@@ -73,7 +70,7 @@ public:
    * not to be confused with file extensions
    * @param fileSuffix A valid file suffix
    */
-  void addSkipFileSuffix(const std::string& fileSuffix) noexcept;
+  void addSkipFileSuffix(const QString& fileSuffix) noexcept;
 
   /**
    * @brief Clears the file suffix skip-list
@@ -88,7 +85,7 @@ public:
    * will have the .git directory skipped during directory linking
    * @param directory Name of the directory
    */
-  void addSkipDirectory(const std::string& directory) noexcept;
+  void addSkipDirectory(const QString& directory) noexcept;
 
   /**
    * @brief Clears the directory skip-list
@@ -98,8 +95,8 @@ public:
   /**
    * @brief Adds a library to be force loaded when the given process is injected
    */
-  void forceLoadLibrary(const std::filesystem::path& processName,
-                        const std::filesystem::path& libraryPath) noexcept;
+  void forceLoadLibrary(const QString& processName,
+                        const QString& libraryPath) noexcept;
   /**
    * @brief Clears all previous calls to ForceLoadLibrary
    */
@@ -120,8 +117,8 @@ public:
    * @param commandLine The command-line arguments to be passed to the executable.
    * @return true if the process was successfully created and started; false otherwise.
    */
-  bool createProcess(const std::string& applicationName,
-                     const std::string& commandLine) noexcept;
+  bool createProcess(const QString& applicationName,
+                     const QString& commandLine) noexcept;
   static const char* ofsVersionString() noexcept;
   void setDebugMode(bool value) noexcept;
 
@@ -133,37 +130,37 @@ public:
 private:
   struct map_t
   {
-    std::filesystem::path source;
-    std::filesystem::path destination;
+    QString source;
+    QString destination;
   };
   using Map = std::vector<map_t>;
 
   struct forceLoadLibrary_t
   {
-    std::filesystem::path processName;
-    std::filesystem::path libraryPath;
+    QString processName;
+    QString libraryPath;
   };
 
   struct overlayFsData_t
   {
-    std::filesystem::path target;
-    std::filesystem::path upperDir;
+    QString target;
+    QString upperDir;
     QTemporaryDir workDir;
-    std::vector<std::filesystem::path> lowerDirs;
-    std::vector<std::filesystem::path> whiteout;
+    QStringList lowerDirs;
+    QStringList whiteout;
     bool mounted = false;
   };
 
   struct fileData_t
   {
     // target is also lowerDir
-    std::filesystem::path target;
+    QString target;
     QTemporaryDir upperDir;
     QTemporaryDir workDir;
     bool mounted = false;
   };
 
-  explicit OverlayFsManager(std::filesystem::path file) noexcept;
+  explicit OverlayFsManager(QString file) noexcept;
   ~OverlayFsManager() noexcept;
 
   void createLogger() noexcept;
@@ -182,15 +179,15 @@ private:
   Map m_map;
   Map m_fileMap;
   std::vector<forceLoadLibrary_t> m_forceLoadLibraries;
-  std::vector<std::string> m_fileSuffixBlacklist;
-  std::vector<std::string> m_directoryBlacklist;
-  std::vector<std::filesystem::path> m_createdWhiteoutFiles;
-  std::vector<std::filesystem::path> m_createdDirectories;
+  QStringList m_fileSuffixBlacklist;
+  QStringList m_directoryBlacklist;
+  QStringList m_createdWhiteoutFiles;
+  QStringList m_createdDirectories;
   std::vector<std::unique_ptr<QProcess>> m_startedProcesses;
   std::vector<overlayFsData_t> m_mounts;
   std::vector<fileData_t> m_fileMounts;
   std::shared_ptr<spdlog::logger> m_logger;
-  std::filesystem::path m_logFile;
+  QString m_logFile;
   bool m_mounted = false;
   std::mutex m_mountMutex;
   std::mutex m_dataMutex;
@@ -200,10 +197,10 @@ private:
    * A directory used internally by fuse-overlayfs.
    * Must be on the same file system as the upper dir.
    */
-  std::filesystem::path m_workDir;
+  QString m_workDir;
   /**
    * A directory merged on top of all the lower dirs
    * where all the changes done to the file system will be written.
    */
-  std::filesystem::path m_upperDir;
+  QString m_upperDir;
 };
