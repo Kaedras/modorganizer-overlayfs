@@ -166,6 +166,8 @@ QStringList OverlayFsManager::createOverlayFsDump() noexcept
   QStringList result;
   result.reserve(1000);
 
+  bool wasMounted = m_mounted;
+
   if (!mountInternal()) {
     return result;
   }
@@ -181,6 +183,10 @@ QStringList OverlayFsManager::createOverlayFsDump() noexcept
     while (iter.hasNext()) {
       result << iter.next();
     }
+  }
+
+  if (!wasMounted) {
+    umountInternal();
   }
 
   result.shrink_to_fit();
