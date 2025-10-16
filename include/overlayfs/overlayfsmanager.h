@@ -130,8 +130,8 @@ public:
 private:
   struct map_t
   {
-    QString source;
-    QString destination;
+    QFileInfo source;
+    QFileInfo destination;
   };
   using Map = std::vector<map_t>;
 
@@ -149,31 +149,33 @@ private:
     QStringList lowerDirs;
     QStringList whiteout;
     bool mounted = false;
-  };
-
-  struct fileData_t
-  {
-    // target is also lowerDir
-    QString target;
-    QTemporaryDir upperDir;
-    QTemporaryDir workDir;
-    bool mounted = false;
+    std::vector<QTemporaryDir> tmpDirs;
   };
 
   explicit OverlayFsManager(QString file) noexcept;
   ~OverlayFsManager() noexcept;
 
   void createLogger() noexcept;
-  bool processFiles() noexcept;
-  bool createOverlayFsMounts() noexcept;
+  [[nodiscard]] bool prepareMounts() noexcept;
+  [[nodiscard]] bool createSymlinks() noexcept;
+
   /**
    * @brief Deletes all whiteout files
    */
   void cleanup() noexcept;
 
   // mount functions without locks for internal use
-  bool mountInternal();
-  bool umountInternal();
+  [[nodiscard]] bool mountInternal();
+  [[nodiscard]] bool umountInternal();
+
+  [[nodiscard]] bool isAnythingMounted() const noexcept;
+
+  /**
+   * @brief Creates the specified directory including parent directories and store all
+   * created directories in m_createdDirectories
+   */
+  [[nodiscard]] bool createDirectories(const std::string& directory) noexcept;
+  [[nodiscard]] bool createDirectories(const QString& directory) noexcept;
 
   spdlog::level::level_enum m_loglevel;
   Map m_map;
@@ -183,9 +185,9 @@ private:
   QStringList m_directoryBlacklist;
   QStringList m_createdWhiteoutFiles;
   QStringList m_createdDirectories;
+  QStringList m_createdSymlinks;
   std::vector<std::unique_ptr<QProcess>> m_startedProcesses;
   std::vector<overlayFsData_t> m_mounts;
-  std::vector<fileData_t> m_fileMounts;
   std::shared_ptr<spdlog::logger> m_logger;
   QString m_logFile;
   bool m_mounted = false;
