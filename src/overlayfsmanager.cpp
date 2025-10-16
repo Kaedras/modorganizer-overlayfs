@@ -131,7 +131,10 @@ bool OverlayFsManager::addDirectory(const QString& source,
 
   if (!sourceInfo.exists()) {
     // create the source if it does not exist
-    QDir(source).mkpath(u"."_s);
+    if (!QDir(source).mkpath(u"."_s)) {
+      m_logger->error("error creating directory '{}'", source.toStdString());
+      return false;
+    }
   } else if (!sourceInfo.isDir()) {
     m_logger->error("source must be a directory");
     return false;
@@ -139,7 +142,10 @@ bool OverlayFsManager::addDirectory(const QString& source,
 
   if (!destinationInfo.exists()) {
     // create the destination if it does not exist
-    QDir(destination).mkpath(u"."_s);
+    if (!QDir(destination).mkpath(u"."_s)) {
+      m_logger->error("error creating directory '{}'", destination.toStdString());
+      return false;
+    }
   } else if (!destinationInfo.isDir()) {
     m_logger->error("destination must be a directory");
     return false;
