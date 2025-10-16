@@ -708,7 +708,12 @@ bool OverlayFsManager::mountInternal()
 bool OverlayFsManager::umountInternal()
 {
   m_logger->debug("unmounting");
-  if (!m_mounted) {
+
+  auto anythingIsMounted = [](const auto& mount) {
+    return mount.mounted;
+  };
+
+  if (!m_mounted || ranges::any_of(m_mounts, anythingIsMounted)) {
     m_logger->debug("not mounted");
     return true;
   }
